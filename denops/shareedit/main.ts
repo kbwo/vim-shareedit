@@ -130,7 +130,7 @@ function handleWs(denops: Denops, req: Request): Response {
 
 function runWsServer(denops: Denops, port: number) {
   Deno.serve(
-    { hostname: "0.0.0.0", port },
+    { port },
     (req) => handleWs(denops, req),
   );
 }
