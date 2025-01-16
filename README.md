@@ -4,10 +4,11 @@
 
 A Neovim plugin that shares open files and cursor positions between Neovim and VSCode
 
+![demo-shareedit](https://github.com/user-attachments/assets/3d486643-4226-4396-9c7a-a955013940de)
+
+
 ## Motivation
 I have been using Neovim for a long time, but recently I've started using editors like Cursor Editor and Cline more frequently, which means I often need to switch between different editors for development and testing.
-
-However, except for specific features like AI-related functionality, using Neovim is still the most efficient for me, so I primarily use Neovim for reading code.
 
 As I continued working this way, frequently switching between Neovim and other editors became cumbersome.
 
