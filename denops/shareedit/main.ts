@@ -72,19 +72,39 @@ export async function main(denops: Denops): Promise<void> {
     socket.onmessage = async (_e) => {
       const msg = JSON.parse(_e.data);
       if (msg.type === "CursorPos") {
-        const cursorPos = msg as CursorPos;
+        const newCursorPos = msg as CursorPos;
+        let cursorPos: { line: number; col: number } = newCursorPos;
+        const currentLine = ensureNumber(await denops.call("line", "."));
+        const currentCol = ensureNumber(await denops.call("col", "."));
+        const lastLine = ensureNumber(await denops.call("line", "$"));
+        const line = ensureString(
+          await denops.call("getline", newCursorPos.line),
+        );
+        const lastColOfNewLine = line.length;
+
+        if (
+          lastLine < newCursorPos.line ||
+          (lastColOfNewLine < newCursorPos.col)
+        ) {
+          cursorPos = { line: currentLine, col: currentCol };
+        } else {
+          cursorPos = { line: newCursorPos.line, col: newCursorPos.col };
+        }
+
         if (
           lastCursorPos && lastCursorPos.line === cursorPos.line &&
           lastCursorPos.col === cursorPos.col
         ) {
           return;
         }
-        lastCursorPos = { line: cursorPos.line, col: cursorPos.col };
+
         const currentPath = ensureString(await denops.call("expand", "%:p"));
-        if (currentPath !== cursorPos.path) {
-          await denops.cmd(`edit ${cursorPos.path}`);
+        if (currentPath !== newCursorPos.path) {
+          await denops.cmd(`edit ${newCursorPos.path}`);
         }
-        await denops.cmd(`call cursor(${cursorPos.line}, ${cursorPos.col})`);
+        await denops.cmd(
+          `call cursor(${cursorPos.line}, ${cursorPos.col})`,
+        );
       }
     };
 
