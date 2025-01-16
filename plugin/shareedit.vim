@@ -1,5 +1,10 @@
+if exists('g:loaded_shareedit')
+  finish
+endif
+let g:loaded_shareedit = 1
+
 function! SyncCursorPosition()
-  if denops#server#status() !=# 'running'
+  if !denops#plugin#is_loaded('shareedit')
     return
   endif
   if mode() !=# 'v' && mode() !=# 'V' && mode() !=# 'i' && mode() !=# 'I'
@@ -12,7 +17,7 @@ function! SyncCursorPosition()
 endfunction
 
 function! SyncVisualSelection()
-  if denops#server#status() !=# 'running'
+  if denops#plugin#is_loaded('shareedit')
     return
   endif
   if mode() ==# 'v' || mode() ==# 'V'
