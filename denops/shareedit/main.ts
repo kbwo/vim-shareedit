@@ -60,7 +60,12 @@ export async function main(denops: Denops): Promise<void> {
     const { socket, response } = Deno.upgradeWebSocket(req);
     sockets.add(socket);
 
+    socket.onopen = () => {
+      console.log("ShareEdit: Client connected");
+    };
+
     socket.onclose = () => {
+      console.log("ShareEdit: Client disconnected");
       sockets.delete(socket);
     };
 
@@ -68,7 +73,10 @@ export async function main(denops: Denops): Promise<void> {
       const msg = JSON.parse(_e.data);
       if (msg.type === "CursorPos") {
         const cursorPos = msg as CursorPos;
-        if (lastCursorPos && lastCursorPos.line === cursorPos.line && lastCursorPos.col === cursorPos.col) {
+        if (
+          lastCursorPos && lastCursorPos.line === cursorPos.line &&
+          lastCursorPos.col === cursorPos.col
+        ) {
           return;
         }
         lastCursorPos = { line: cursorPos.line, col: cursorPos.col };
@@ -77,7 +85,7 @@ export async function main(denops: Denops): Promise<void> {
       }
     };
 
-    socket.onerror = (e) => console.error("error", e);
+    socket.onerror = (e) => console.error("ShareEdit error:", e);
     return response;
   }
 
