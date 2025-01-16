@@ -80,7 +80,10 @@ export async function main(denops: Denops): Promise<void> {
           return;
         }
         lastCursorPos = { line: cursorPos.line, col: cursorPos.col };
-        await denops.cmd(`edit ${cursorPos.path}`);
+        const currentPath = ensureString(await denops.call("expand", "%:p"));
+        if (currentPath !== cursorPos.path) {
+          await denops.cmd(`edit ${cursorPos.path}`);
+        }
         await denops.cmd(`call cursor(${cursorPos.line}, ${cursorPos.col})`);
       }
     };
