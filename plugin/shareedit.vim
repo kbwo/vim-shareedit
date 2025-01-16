@@ -1,9 +1,25 @@
-function! GetCursorPosition()
+if exists('g:loaded_shareedit')
+  finish
+endif
+let g:loaded_shareedit = 1
+
+function! SyncCursorPosition()
+  if !denops#plugin#is_loaded('shareedit')
+    return
+  endif
   if mode() !=# 'v' && mode() !=# 'V' && mode() !=# 'i' && mode() !=# 'I'
-    call denops#notify("shareedit", "syncCursorPos", [])
+    let line = line('.')
+    let col = col('.')
+    
+    " Only sync if position changed
+    call denops#notify("shareedit", "syncCursorPos", [line, col])
   endif 
 endfunction
-function! EchoVisualSelection()
+
+function! SyncVisualSelection()
+  if denops#plugin#is_loaded('shareedit')
+    return
+  endif
   if mode() ==# 'v' || mode() ==# 'V'
     let [startLine, startCol] = getpos("v")[1:2]
     let [endLine, endCol] = getpos(".")[1:2]
@@ -11,7 +27,7 @@ function! EchoVisualSelection()
   endif 
 endfunction
 
-autocmd CursorMoved,VimResized * call EchoVisualSelection()
-autocmd CursorMoved * call GetCursorPosition()
+autocmd CursorMoved,VimResized * call SyncVisualSelection()
+autocmd CursorMoved,CursorHold,InsertLeave * call SyncCursorPosition()
 
 command! -nargs=1 ShareEdit call denops#notify("shareedit", "setPort", [<args>])

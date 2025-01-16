@@ -33,21 +33,68 @@ const sockets = new Set<WebSocket>();
 const ensureNumber = (arg: unknown): number => ensure(arg, is.Number);
 const ensureString = (arg: unknown): string => ensure(arg, is.String);
 
-export async function main(denops: Denops): Promise<void> {
-  const debouncedSyncCursor = debounce(async () => {
-    const line = ensureNumber(await denops.call("line", "."));
-    const col = ensureNumber(await denops.call("col", "."));
-    const path = ensureString(await denops.call("expand", "%:p"));
-    const json: CursorPos = {
-      type: "CursorPos",
-      sender: "vim",
-      path,
-      line,
-      col,
-    };
-    sockets.forEach((s) => s.send(JSON.stringify(json)));
-  }, 100);
+let lastCursorPos: { line: number; col: number } | null = null;
 
+export async function main(denops: Denops): Promise<void> {
+  const debouncedSyncCursor = debounce(
+    async (line: unknown, col: unknown) => {
+      const lineNum = ensureNumber(line);
+      const colNum = ensureNumber(col);
+      const path = ensureString(await denops.call("expand", "%:p"));
+      const json: CursorPos = {
+        type: "CursorPos",
+        sender: "vim",
+        path,
+        line: lineNum,
+        col: colNum,
+      };
+      sockets.forEach((s) => s.send(JSON.stringify(json)));
+    },
+    100,
+  );
+
+  function handleWs(denops: Denops, req: Request): Response {
+    if (req.headers.get("upgrade") !== "websocket") {
+      return new Response("not trying to upgrade as websocket.");
+    }
+    const { socket, response } = Deno.upgradeWebSocket(req);
+    sockets.add(socket);
+
+    socket.onopen = () => {
+      console.log("ShareEdit: Client connected");
+    };
+
+    socket.onclose = () => {
+      console.log("ShareEdit: Client disconnected");
+      sockets.delete(socket);
+    };
+
+    socket.onmessage = async (_e) => {
+      const msg = JSON.parse(_e.data);
+      if (msg.type === "CursorPos") {
+        const cursorPos = msg as CursorPos;
+        if (
+          lastCursorPos && lastCursorPos.line === cursorPos.line &&
+          lastCursorPos.col === cursorPos.col
+        ) {
+          return;
+        }
+        lastCursorPos = { line: cursorPos.line, col: cursorPos.col };
+        await denops.cmd(`edit ${cursorPos.path}`);
+        await denops.cmd(`call cursor(${cursorPos.line}, ${cursorPos.col})`);
+      }
+    };
+
+    socket.onerror = (e) => console.error("ShareEdit error:", e);
+    return response;
+  }
+
+  function runWsServer(denops: Denops, port: number) {
+    Deno.serve(
+      { port },
+      (req) => handleWs(denops, req),
+    );
+  }
   denops.dispatcher = {
     async syncText(): Promise<void> {
       const currentBuffer = ensureString(await denops.call("expand", "%:p"));
@@ -67,7 +114,23 @@ export async function main(denops: Denops): Promise<void> {
       });
       return Promise.resolve();
     },
-    syncCursorPos: debouncedSyncCursor,
+
+    syncCursorPos: async (line, col) => {
+      const lineNum = ensureNumber(await denops.call("line", "."));
+      const colNum = ensureNumber(await denops.call("col", "."));
+
+      if (
+        lastCursorPos && lastCursorPos.line === lineNum &&
+        lastCursorPos.col === colNum
+      ) {
+        return;
+      }
+
+      lastCursorPos = { line: lineNum, col: colNum };
+
+      debouncedSyncCursor(line, col);
+    },
+
     async syncSelectionPos(
       startLine: unknown,
       startCol: unknown,
@@ -103,36 +166,6 @@ export async function main(denops: Denops): Promise<void> {
     },
   };
   return Promise.resolve();
-}
-
-function handleWs(denops: Denops, req: Request): Response {
-  if (req.headers.get("upgrade") !== "websocket") {
-    return new Response("not trying to upgrade as websocket.");
-  }
-  const { socket, response } = Deno.upgradeWebSocket(req);
-  sockets.add(socket);
-
-  socket.onclose = () => {
-    sockets.delete(socket);
-  };
-
-  socket.onmessage = async (_e) => {
-    const msg = JSON.parse(_e.data);
-    if (msg.type === "CursorPos") {
-      const cursorPos = msg as CursorPos;
-      await denops.cmd(`call cursor(${cursorPos.line}, ${cursorPos.col})`);
-    }
-  };
-
-  socket.onerror = (e) => console.error("error", e);
-  return response;
-}
-
-function runWsServer(denops: Denops, port: number) {
-  Deno.serve(
-    { port },
-    (req) => handleWs(denops, req),
-  );
 }
 
 async function getCurrentText(denops: Denops): Promise<string> {
