@@ -36,8 +36,7 @@ See [VSCode Extension](https://marketplace.visualstudio.com/items?itemName=kbwo.
 ## TODO
 
 - Share cursor position
-    - [x] Vim -> VSCode
-    - [ ] VSCode -> Vim
+    - [x] Vim <-> VSCode bidirectional cursor position syncing
 - [ ] Share visual mode selection range
 - [ ] Share unsaved file edits
 
