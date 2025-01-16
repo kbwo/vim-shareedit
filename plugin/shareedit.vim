@@ -8,11 +8,8 @@ function! SyncCursorPosition()
     return
   endif
   if mode() !=# 'v' && mode() !=# 'V' && mode() !=# 'i' && mode() !=# 'I'
-    let line = line('.')
-    let col = col('.')
-    
     " Only sync if position changed
-    call denops#notify("shareedit", "syncCursorPos", [line, col])
+    call denops#notify("shareedit", "syncCursorPos", [])
   endif 
 endfunction
 

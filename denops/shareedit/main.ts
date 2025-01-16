@@ -33,7 +33,7 @@ const sockets = new Set<WebSocket>();
 const ensureNumber = (arg: unknown): number => ensure(arg, is.Number);
 const ensureString = (arg: unknown): string => ensure(arg, is.String);
 
-let lastCursorPos: { line: number; col: number } | null = null;
+let lastCursorPos: { path: string; line: number; col: number } | null = null;
 
 export async function main(denops: Denops): Promise<void> {
   const debouncedSyncCursor = debounce(
@@ -73,9 +73,11 @@ export async function main(denops: Denops): Promise<void> {
       const msg = JSON.parse(_e.data);
       if (msg.type === "CursorPos") {
         const newCursorPos = msg as CursorPos;
-        let cursorPos: { line: number; col: number } = newCursorPos;
+        let cursorPos: { path: string; line: number; col: number } =
+          newCursorPos;
         const currentLine = ensureNumber(await denops.call("line", "."));
         const currentCol = ensureNumber(await denops.call("col", "."));
+        const currentPath = ensureString(await denops.call("expand", "%:p"));
         const lastLine = ensureNumber(await denops.call("line", "$"));
         const line = ensureString(
           await denops.call("getline", newCursorPos.line),
@@ -86,22 +88,33 @@ export async function main(denops: Denops): Promise<void> {
           lastLine < newCursorPos.line ||
           (lastColOfNewLine < newCursorPos.col)
         ) {
-          cursorPos = { line: currentLine, col: currentCol };
+          cursorPos = { path: currentPath, line: currentLine, col: currentCol };
         } else {
-          cursorPos = { line: newCursorPos.line, col: newCursorPos.col };
+          cursorPos = {
+            path: newCursorPos.path,
+            line: newCursorPos.line,
+            col: newCursorPos.col,
+          };
+        }
+
+        if (currentPath !== newCursorPos.path) {
+          await denops.cmd(`edit ${newCursorPos.path}`);
         }
 
         if (
-          lastCursorPos && lastCursorPos.line === cursorPos.line &&
+          lastCursorPos &&
+          lastCursorPos.path === cursorPos.path &&
+          lastCursorPos.line === cursorPos.line &&
           lastCursorPos.col === cursorPos.col
         ) {
           return;
         }
+        lastCursorPos = {
+          path: currentPath,
+          line: cursorPos.line,
+          col: cursorPos.col,
+        };
 
-        const currentPath = ensureString(await denops.call("expand", "%:p"));
-        if (currentPath !== newCursorPos.path) {
-          await denops.cmd(`edit ${newCursorPos.path}`);
-        }
         await denops.cmd(
           `call cursor(${cursorPos.line}, ${cursorPos.col})`,
         );
@@ -138,20 +151,23 @@ export async function main(denops: Denops): Promise<void> {
       return Promise.resolve();
     },
 
-    syncCursorPos: async (line, col) => {
+    syncCursorPos: async () => {
       const lineNum = ensureNumber(await denops.call("line", "."));
       const colNum = ensureNumber(await denops.call("col", "."));
+      const currentPath = ensureString(await denops.call("expand", "%:p"));
 
       if (
-        lastCursorPos && lastCursorPos.line === lineNum &&
+        lastCursorPos &&
+        lastCursorPos.path === currentPath &&
+        lastCursorPos.line === lineNum &&
         lastCursorPos.col === colNum
       ) {
         return;
       }
 
-      lastCursorPos = { line: lineNum, col: colNum };
+      lastCursorPos = { path: currentPath, line: lineNum, col: colNum };
 
-      debouncedSyncCursor(line, col);
+      debouncedSyncCursor(lineNum, colNum);
     },
 
     async syncSelectionPos(
