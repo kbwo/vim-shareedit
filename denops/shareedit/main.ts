@@ -50,7 +50,7 @@ export async function main(denops: Denops): Promise<void> {
       };
       sockets.forEach((s) => s.send(JSON.stringify(json)));
     },
-    100,
+    50,
   );
 
   function handleWs(denops: Denops, req: Request): Response {
