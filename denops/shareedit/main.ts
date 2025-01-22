@@ -33,6 +33,22 @@ const sockets = new Set<WebSocket>();
 const ensureNumber = (arg: unknown): number => ensure(arg, is.Number);
 const ensureString = (arg: unknown): string => ensure(arg, is.String);
 
+const getCurrentLine = async (denops: Denops): Promise<number> =>
+  ensureNumber(await denops.call("line", "."));
+
+const getCurrentCol = async (denops: Denops): Promise<number> =>
+  ensureNumber(
+    await denops.call(
+      "strcharlen",
+      await denops.call(
+        "strpart",
+        await denops.call("getline", "."),
+        0,
+        ensureNumber(await denops.call("col", ".")) - 1,
+      ),
+    ),
+  ) + 1;
+
 let lastCursorPos: { path: string; line: number; col: number } | null = null;
 
 export async function main(denops: Denops): Promise<void> {
@@ -75,8 +91,8 @@ export async function main(denops: Denops): Promise<void> {
         const newCursorPos = msg as CursorPos;
         let cursorPos: { path: string; line: number; col: number } =
           newCursorPos;
-        const currentLine = ensureNumber(await denops.call("line", "."));
-        const currentCol = ensureNumber(await denops.call("col", "."));
+        const currentLine = await getCurrentLine(denops);
+        const currentCol = await getCurrentCol(denops);
         const currentPath = ensureString(await denops.call("expand", "%:p"));
         const lastLine = ensureNumber(await denops.call("line", "$"));
         const line = ensureString(
@@ -134,8 +150,8 @@ export async function main(denops: Denops): Promise<void> {
   denops.dispatcher = {
     async syncText(): Promise<void> {
       const currentBuffer = ensureString(await denops.call("expand", "%:p"));
-      const line = ensureNumber(await denops.call("line", "."));
-      const col = ensureNumber(await denops.call("col", "."));
+      const line = await getCurrentLine(denops);
+      const col = await getCurrentCol(denops);
       const body: TextContent = {
         type: "TextContent",
         sender: "vim",
@@ -152,8 +168,8 @@ export async function main(denops: Denops): Promise<void> {
     },
 
     syncCursorPos: async () => {
-      const lineNum = ensureNumber(await denops.call("line", "."));
-      const colNum = ensureNumber(await denops.call("col", "."));
+      const lineNum = await getCurrentLine(denops);
+      const colNum = await getCurrentCol(denops);
       const currentPath = ensureString(await denops.call("expand", "%:p"));
 
       if (
