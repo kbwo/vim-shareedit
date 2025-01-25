@@ -1,55 +1,17 @@
 import { Denops } from "jsr:@denops/std";
-import { ensure, is } from "jsr:@core/unknownutil";
 import { debounce } from "https://deno.land/std@0.224.0/async/mod.ts";
+import { WebSocketManager } from "./websocket.ts";
+import {
+  ensureNumber,
+  ensureString,
+  getCurrentCol,
+  getCurrentLine,
+  getCurrentPath,
+  getCurrentText,
+} from "./utils.ts";
+import type { CursorPos, SelectionPos, TextContent } from "./types.ts";
 
-type TextContent = {
-  type: "TextContent";
-  sender: "vscode" | "vim";
-  path: string;
-  text: string;
-  cursorLine: number;
-  cursorCol: number;
-};
-
-type CursorPos = {
-  type: "CursorPos";
-  sender: "vscode" | "vim";
-  path: string;
-  line: number;
-  col: number;
-};
-
-type SelectionPos = {
-  type: "SelectionPos";
-  startLine: number;
-  startCol: number;
-  endLine: number;
-  endCol: number;
-  path: string;
-};
-
-const sockets = new Set<WebSocket>();
-
-const ensureNumber = (arg: unknown): number => ensure(arg, is.Number);
-const ensureString = (arg: unknown): string => ensure(arg, is.String);
-
-const getCurrentLine = async (denops: Denops): Promise<number> =>
-  ensureNumber(await denops.call("line", "."));
-
-const getCurrentCol = async (denops: Denops): Promise<number> =>
-  ensureNumber(
-    await denops.call(
-      "strcharlen",
-      await denops.call(
-        "strpart",
-        await denops.call("getline", "."),
-        0,
-        ensureNumber(await denops.call("col", ".")) - 1,
-      ),
-    ),
-  ) + 1;
-
-let lastCursorPos: { path: string; line: number; col: number } | null = null;
+const wsManager = new WebSocketManager();
 
 export function main(denops: Denops): Promise<void> {
   const debouncedSyncCursor = debounce(
@@ -64,7 +26,7 @@ export function main(denops: Denops): Promise<void> {
         line: lineNum,
         col: colNum,
       };
-      sockets.forEach((s) => s.send(JSON.stringify(json)));
+      wsManager.broadcast(json);
     },
     50,
   );
@@ -73,8 +35,9 @@ export function main(denops: Denops): Promise<void> {
     if (req.headers.get("upgrade") !== "websocket") {
       return new Response("not trying to upgrade as websocket.");
     }
+
     const { socket, response } = Deno.upgradeWebSocket(req);
-    sockets.add(socket);
+    wsManager.addSocket(socket);
 
     socket.onopen = () => {
       console.log("ShareEdit: Client connected");
@@ -82,60 +45,13 @@ export function main(denops: Denops): Promise<void> {
 
     socket.onclose = () => {
       console.log("ShareEdit: Client disconnected");
-      sockets.delete(socket);
+      wsManager.removeSocket(socket);
     };
 
     socket.onmessage = async (_e) => {
       const msg = JSON.parse(_e.data);
       if (msg.type === "CursorPos") {
-        let newCursorPos: { path: string; line: number; col: number } = {
-          ...msg,
-        };
-        const currentLine = await getCurrentLine(denops);
-        const currentCol = await getCurrentCol(denops);
-        const currentPath = ensureString(await denops.call("expand", "%:p"));
-        const lastLine = ensureNumber(await denops.call("line", "$"));
-        const line = ensureString(
-          await denops.call("getline", newCursorPos.line),
-        );
-        const lastColOfNewLine = line.length;
-
-        if (
-          currentPath === newCursorPos.path &&
-          (
-            lastLine < newCursorPos.line ||
-            lastColOfNewLine < newCursorPos.col
-          )
-        ) {
-          newCursorPos = {
-            path: currentPath,
-            line: currentLine,
-            col: currentCol,
-          };
-        }
-
-        if (
-          lastCursorPos &&
-          lastCursorPos.path === newCursorPos.path &&
-          lastCursorPos.line === newCursorPos.line &&
-          lastCursorPos.col === newCursorPos.col
-        ) {
-          return;
-        }
-
-        if (currentPath !== newCursorPos.path) {
-          await denops.cmd(`edit ${newCursorPos.path}`);
-        }
-
-        lastCursorPos = {
-          path: newCursorPos.path,
-          line: newCursorPos.line,
-          col: newCursorPos.col,
-        };
-
-        await denops.cmd(
-          `execute "noautocmd call cursor(${newCursorPos.line}, ${newCursorPos.col})"`,
-        );
+        await wsManager.handleCursorPosMessage(denops, msg);
       }
     };
 
@@ -149,9 +65,10 @@ export function main(denops: Denops): Promise<void> {
       (req) => handleWs(denops, req),
     );
   }
+
   denops.dispatcher = {
     async syncText(): Promise<void> {
-      const currentBuffer = ensureString(await denops.call("expand", "%:p"));
+      const currentBuffer = await getCurrentPath(denops);
       const line = await getCurrentLine(denops);
       const col = await getCurrentCol(denops);
       const body: TextContent = {
@@ -163,16 +80,15 @@ export function main(denops: Denops): Promise<void> {
         cursorCol: col,
       };
 
-      sockets.forEach((s) => {
-        s.send(JSON.stringify(body));
-      });
+      wsManager.broadcast(body);
       return Promise.resolve();
     },
 
     syncCursorPos: async () => {
       const lineNum = await getCurrentLine(denops);
       const colNum = await getCurrentCol(denops);
-      const currentPath = ensureString(await denops.call("expand", "%:p"));
+      const currentPath = await getCurrentPath(denops);
+      const lastCursorPos = wsManager.getLastCursorPos();
 
       if (
         lastCursorPos &&
@@ -183,8 +99,11 @@ export function main(denops: Denops): Promise<void> {
         return;
       }
 
-      lastCursorPos = { path: currentPath, line: lineNum, col: colNum };
-
+      wsManager.setLastCursorPos({
+        path: currentPath,
+        line: lineNum,
+        col: colNum,
+      });
       debouncedSyncCursor(lineNum, colNum);
     },
 
@@ -194,37 +113,26 @@ export function main(denops: Denops): Promise<void> {
       endLine: unknown,
       endCol: unknown,
     ): Promise<void> {
-      const startLineNum = ensureNumber(startLine);
-      const startColNum = ensureNumber(startCol);
-      const endLineNum = ensureNumber(endLine);
-      const endColNum = ensureNumber(endCol);
-      const currentBuffer = ensureString(await denops.call("expand", "%:p"));
       const json: SelectionPos = {
         type: "SelectionPos",
-        startLine: startLineNum,
-        startCol: startColNum,
-        endLine: endLineNum,
-        endCol: endColNum,
-        path: currentBuffer,
+        startLine: ensureNumber(startLine),
+        startCol: ensureNumber(startCol),
+        endLine: ensureNumber(endLine),
+        endCol: ensureNumber(endCol),
+        path: await getCurrentPath(denops),
       };
-      sockets.forEach((s) => {
-        s.send(JSON.stringify(json));
-      });
+      wsManager.broadcast(json);
       return Promise.resolve();
     },
+
     run(port: unknown) {
       const portNumber = ensureNumber(port);
       if (portNumber < 1 || portNumber > 65535) {
         throw new Error("Port number must be between 1 and 65535");
       }
-      // Restart the server with new port
       runWsServer(denops, portNumber);
     },
   };
-  return Promise.resolve();
-}
 
-async function getCurrentText(denops: Denops): Promise<string> {
-  const text = ensureString(await denops.call("getline", ".", "$"));
-  return text;
+  return Promise.resolve();
 }
