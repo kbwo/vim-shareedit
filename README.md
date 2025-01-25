@@ -28,7 +28,7 @@ Plug 'kbwo/vim-shareedit'
 
 In Vim
 ```
-:ShareEdit <PORT>
+:ShareEditStart
 ```
 
 In VSCode, you can connect to vim-shareedit by `Connect to vim-shareedit` command from command palette (Cmd/Ctrl+Shift+P).

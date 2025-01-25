@@ -1,0 +1,78 @@
+*shareedit.txt*  Share files and cursor positions between Neovim and VSCode
+
+Author:  Kodai Kabasawa
+License: MIT License
+Repo:    https://github.com/kbwo/vim-shareedit
+
+==============================================================================
+CONTENTS                                                    *shareedit-contents*
+
+    1. Introduction .................... |shareedit-introduction|
+    2. Requirements .................... |shareedit-requirements|
+    3. Installation .................... |shareedit-installation|
+    4. Usage ........................... |shareedit-usage|
+    5. Commands ........................ |shareedit-commands|
+    6. Features ........................ |shareedit-features|
+
+==============================================================================
+1. INTRODUCTION                                         *shareedit-introduction*
+
+vim-shareedit is a Neovim plugin that enables seamless sharing of open files and
+cursor positions between Neovim and VSCode. This plugin is particularly useful
+when you need to switch between different editors during development and testing.
+
+==============================================================================
+2. REQUIREMENTS                                       *shareedit-requirements*
+
+- Neovim
+- denops.vim (https://github.com/vim-denops/denops.vim)
+- VSCode with shareedit extension installed
+
+==============================================================================
+3. INSTALLATION                                       *shareedit-installation*
+
+Using vim-plug: >
+    Plug 'vim-denops/denops.vim'
+    Plug 'kbwo/vim-shareedit'
+<
+
+==============================================================================
+4. USAGE                                                    *shareedit-usage*
+
+To start sharing:
+1. In Vim/Neovim, run: >
+    :ShareEditStart
+<
+2. In VSCode:
+   - Open Command Palette (Cmd/Ctrl+Shift+P)
+   - Run "Connect to vim-shareedit" command
+
+To stop sharing: >
+    :ShareEditStop
+<
+
+==============================================================================
+5. COMMANDS                                              *shareedit-commands*
+
+                                                            *:ShareEditStart*
+:ShareEditStart         Start the sharing session. This will start a WebSocket
+                       server that VSCode can connect to.
+
+                                                            *:ShareEditStop*
+:ShareEditStop          Stop the sharing session and cleanup connections.
+
+==============================================================================
+6. FEATURES                                              *shareedit-features*
+
+Current Features:
+- Bidirectional cursor position syncing between Vim and VSCode
+- Real-time file content sharing
+- Automatic session management
+- Support for multiple concurrent connections
+
+Upcoming Features:
+- Visual mode selection range sharing
+- Unsaved file edit sharing
+
+==============================================================================
+vim:ft=help:norl:ts=8:sw=8:sts=8:
