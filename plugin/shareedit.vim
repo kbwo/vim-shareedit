@@ -27,4 +27,4 @@ endfunction
 autocmd CursorMoved,VimResized * call SyncVisualSelection()
 autocmd CursorMoved,CursorHold,InsertLeave * call SyncCursorPosition()
 
-command! -nargs=1 ShareEdit call denops#notify("shareedit", "setPort", [<args>])
+command! -nargs=1 ShareEdit call denops#notify("shareedit", "run", [<args>])
