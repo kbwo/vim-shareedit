@@ -7,22 +7,25 @@ import {
   getLastLine,
   getSpecificLineLength,
 } from "./utils.ts";
+import { cleanupSessions, saveSession } from "./session.ts";
+
+// private field in WebSocketManager is not working
+const sockets = new Set<WebSocket>();
 
 export class WebSocketManager {
-  private sockets = new Set<WebSocket>();
   private lastCursorPos: { path: string; line: number; col: number } | null =
     null;
 
   addSocket(socket: WebSocket) {
-    this.sockets.add(socket);
+    sockets.add(socket);
   }
 
   removeSocket(socket: WebSocket) {
-    this.sockets.delete(socket);
+    sockets.delete(socket);
   }
 
   broadcast(data: TextContent | CursorPos | SelectionPos) {
-    this.sockets.forEach((s) => s.send(JSON.stringify(data)));
+    sockets.forEach((s) => s.send(JSON.stringify(data)));
   }
 
   getLastCursorPos() {
@@ -79,4 +82,70 @@ export class WebSocketManager {
       `execute "noautocmd call cursor(${newCursorPos.line}, ${newCursorPos.col})"`,
     );
   }
+}
+
+let currentServer: Deno.HttpServer<Deno.NetAddr> | null = null;
+
+export async function stopWsServer() {
+  if (!currentServer) {
+    console.log("ShareEdit: No server to stop");
+    return;
+  }
+  await currentServer.shutdown();
+  await cleanupSessions();
+  currentServer = null;
+  console.log("ShareEdit: Server stopped");
+}
+
+const wsManager = new WebSocketManager();
+console.log("initialize wsmanager");
+
+function handleWs(denops: Denops, req: Request): Response {
+  if (req.headers.get("upgrade") !== "websocket") {
+    return new Response("not trying to upgrade as websocket.");
+  }
+
+  const { socket, response } = Deno.upgradeWebSocket(req);
+  wsManager.addSocket(socket);
+
+  socket.onopen = () => {
+    console.log("ShareEdit: Client connected");
+  };
+
+  socket.onclose = () => {
+    console.log("ShareEdit: Client disconnected");
+    wsManager.removeSocket(socket);
+  };
+
+  socket.onmessage = async (_e) => {
+    const msg = JSON.parse(_e.data);
+    if (msg.type === "CursorPos") {
+      await wsManager.handleCursorPosMessage(denops, msg);
+    }
+  };
+
+  socket.onerror = (e) => console.error("ShareEdit error:", e);
+  return response;
+}
+
+export async function runWsServer(denops: Denops) {
+  // Close existing server if it exists
+  if (currentServer) {
+    console.log("ShareEdit: Closing existing server");
+    await currentServer.shutdown();
+    currentServer = null;
+  }
+
+  // Clean up stale sessions before starting new server
+  await cleanupSessions();
+
+  const server = Deno.serve(
+    { port: 0 },
+    (req) => handleWs(denops, req),
+  );
+  currentServer = server;
+  const port = server.addr.port;
+
+  // Save session information
+  await saveSession(port);
 }
