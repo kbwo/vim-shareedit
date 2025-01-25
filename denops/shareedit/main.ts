@@ -17,6 +17,7 @@ type CursorPos = {
   path: string;
   line: number;
   col: number;
+  centerLine: number | null;
 };
 
 type SelectionPos = {
@@ -49,20 +50,33 @@ const getCurrentCol = async (denops: Denops): Promise<number> =>
     ),
   ) + 1;
 
-let lastCursorPos: { path: string; line: number; col: number } | null = null;
+const getCenterLine = async (denops: Denops): Promise<number> => {
+  const visibleStartLine = ensureNumber(await denops.call("line", "w0"));
+  const visibleEndLine = ensureNumber(await denops.call("line", "w$"));
+  return Math.floor((visibleStartLine + visibleEndLine) / 2);
+};
 
-export async function main(denops: Denops): Promise<void> {
+let lastCursorPos: {
+  path: string;
+  line: number;
+  col: number;
+  centerLine: number | null;
+} | null = null;
+
+export function main(denops: Denops): Promise<void> {
   const debouncedSyncCursor = debounce(
     async (line: unknown, col: unknown) => {
       const lineNum = ensureNumber(line);
       const colNum = ensureNumber(col);
       const path = ensureString(await denops.call("expand", "%:p"));
+      const centerLine = await getCenterLine(denops);
       const json: CursorPos = {
         type: "CursorPos",
         sender: "vim",
         path,
         line: lineNum,
         col: colNum,
+        centerLine,
       };
       sockets.forEach((s) => s.send(JSON.stringify(json)));
     },
@@ -88,9 +102,10 @@ export async function main(denops: Denops): Promise<void> {
     socket.onmessage = async (_e) => {
       const msg = JSON.parse(_e.data);
       if (msg.type === "CursorPos") {
-        const newCursorPos = msg as CursorPos;
-        let cursorPos: { path: string; line: number; col: number } =
-          newCursorPos;
+        let newCursorPos: Pick<
+          CursorPos,
+          "path" | "line" | "col" | "centerLine"
+        > = { ...msg };
         const currentLine = await getCurrentLine(denops);
         const currentCol = await getCurrentCol(denops);
         const currentPath = ensureString(await denops.call("expand", "%:p"));
@@ -101,15 +116,17 @@ export async function main(denops: Denops): Promise<void> {
         const lastColOfNewLine = line.length;
 
         if (
-          lastLine < newCursorPos.line ||
-          (lastColOfNewLine < newCursorPos.col)
+          currentPath === newCursorPos.path &&
+          (
+            lastLine < newCursorPos.line ||
+            lastColOfNewLine < newCursorPos.col
+          )
         ) {
-          cursorPos = { path: currentPath, line: currentLine, col: currentCol };
-        } else {
-          cursorPos = {
-            path: newCursorPos.path,
-            line: newCursorPos.line,
-            col: newCursorPos.col,
+          newCursorPos = {
+            path: currentPath,
+            line: currentLine,
+            col: currentCol,
+            centerLine: newCursorPos.centerLine,
           };
         }
 
@@ -119,20 +136,27 @@ export async function main(denops: Denops): Promise<void> {
 
         if (
           lastCursorPos &&
-          lastCursorPos.path === cursorPos.path &&
-          lastCursorPos.line === cursorPos.line &&
-          lastCursorPos.col === cursorPos.col
+          lastCursorPos.path === newCursorPos.path &&
+          lastCursorPos.line === newCursorPos.line &&
+          lastCursorPos.col === newCursorPos.col &&
+          lastCursorPos.centerLine === newCursorPos.centerLine
         ) {
           return;
         }
-        lastCursorPos = {
-          path: currentPath,
-          line: cursorPos.line,
-          col: cursorPos.col,
-        };
+        if (
+          newCursorPos.centerLine &&
+          newCursorPos.centerLine !== lastCursorPos?.centerLine
+        ) {
+          await denops.cmd(
+            `execute "noautocmd normal ${newCursorPos.centerLine}zz"`,
+          );
+          if (lastCursorPos) {
+            lastCursorPos.centerLine = newCursorPos.centerLine;
+          }
+        }
 
         await denops.cmd(
-          `call cursor(${cursorPos.line}, ${cursorPos.col})`,
+          `execute "noautocmd call cursor(${newCursorPos.line}, ${newCursorPos.col})"`,
         );
       }
     };
@@ -171,17 +195,24 @@ export async function main(denops: Denops): Promise<void> {
       const lineNum = await getCurrentLine(denops);
       const colNum = await getCurrentCol(denops);
       const currentPath = ensureString(await denops.call("expand", "%:p"));
+      const centerLine = await getCenterLine(denops);
 
       if (
         lastCursorPos &&
         lastCursorPos.path === currentPath &&
         lastCursorPos.line === lineNum &&
-        lastCursorPos.col === colNum
+        lastCursorPos.col === colNum &&
+        lastCursorPos.centerLine === centerLine
       ) {
         return;
       }
 
-      lastCursorPos = { path: currentPath, line: lineNum, col: colNum };
+      lastCursorPos = {
+        path: currentPath,
+        line: lineNum,
+        col: colNum,
+        centerLine,
+      };
 
       debouncedSyncCursor(lineNum, colNum);
     },
@@ -210,7 +241,7 @@ export async function main(denops: Denops): Promise<void> {
       });
       return Promise.resolve();
     },
-    async setPort(port: unknown): Promise<void> {
+    setPort(port: unknown): Promise<void> {
       const portNumber = ensureNumber(port);
       if (portNumber < 1 || portNumber > 65535) {
         throw new Error("Port number must be between 1 and 65535");
