@@ -14,6 +14,10 @@ As I continued working this way, frequently switching between Neovim and other e
 
 Therefore, to make switching between Neovim and VSCode smoother, I created this plugin that shares files and cursor positions between Neovim and VSCode.
 
+## Requirements
+
+- Visual Studio Code with [vscode-shareedit](https://marketplace.visualstudio.com/items?itemName=kbwo.shareedit) plugin installed
+
 ## Installation
 Install with your preferred plugin manager.
 
@@ -38,6 +42,7 @@ See [VSCode Extension](https://marketplace.visualstudio.com/items?itemName=kbwo.
 
 - Share cursor position
     - [x] Vim <-> VSCode bidirectional cursor position syncing
+- [x] Session management
 - [ ] Share visual mode selection range
 - [ ] Share unsaved file edits
 

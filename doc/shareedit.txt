@@ -26,7 +26,7 @@ when you need to switch between different editors during development and testing
 
 - Neovim
 - denops.vim (https://github.com/vim-denops/denops.vim)
-- VSCode with shareedit extension installed
+- VSCode extension (https://marketplace.visualstudio.com/items?itemName=kbwo.shareedit)
 
 ==============================================================================
 3. INSTALLATION                                       *shareedit-installation*
