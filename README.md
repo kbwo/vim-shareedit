@@ -4,7 +4,11 @@
 
 A Neovim plugin that shares open files and cursor positions between Neovim and VSCode
 
-![demo-shareedit](https://github.com/user-attachments/assets/3d486643-4226-4396-9c7a-a955013940de)
+
+
+https://github.com/user-attachments/assets/5dd42718-4cdc-4747-9d9b-a3c72c8ccfdb
+
+
 
 
 ## Motivation
