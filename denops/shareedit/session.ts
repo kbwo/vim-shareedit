@@ -78,12 +78,18 @@ export async function cleanupSessions(): Promise<void> {
     // Check each session
     for (const session of sessions) {
       try {
-        // Try to create a TCP connection to test if port is in use
-        const conn = await Deno.connect({
-          hostname: "127.0.0.1",
-          port: session.port,
+        // Try to create a WebSocket connection to test if port is in use
+        const ws = new WebSocket(`ws://127.0.0.1:${session.port}`);
+        await new Promise((resolve, reject) => {
+          ws.onopen = () => {
+            ws.close();
+            resolve(true);
+          };
+          ws.onerror = () => {
+            ws.close();
+            reject();
+          };
         });
-        conn.close();
         // Port is in use, keep this session
         validSessions.push(session);
       } catch {
