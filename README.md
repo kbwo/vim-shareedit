@@ -21,6 +21,7 @@ Therefore, to make switching between Neovim and VSCode smoother, I created this 
 ## Requirements
 
 - Visual Studio Code with [vscode-shareedit](https://marketplace.visualstudio.com/items?itemName=kbwo.shareedit) plugin installed
+- Deno
 
 ## Installation
 Install with your preferred plugin manager.

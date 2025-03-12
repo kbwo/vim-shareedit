@@ -3,29 +3,8 @@ if exists('g:loaded_shareedit')
 endif
 let g:loaded_shareedit = 1
 
-function! SyncCursorPosition()
-  if !denops#plugin#is_loaded('shareedit')
-    return
-  endif
-  if mode() !=# 'v' && mode() !=# 'V' && mode() !=# 'i' && mode() !=# 'I'
-    " Only sync if position changed
-    call denops#notify("shareedit", "syncCursorPos", [])
-  endif 
-endfunction
+autocmd CursorMoved,VimResized * call shareedit#sync_visual_selection()
+autocmd CursorMoved,CursorHold,InsertLeave * call shareedit#sync_cursor_position()
 
-function! SyncVisualSelection()
-  if denops#plugin#is_loaded('shareedit')
-    return
-  endif
-  if mode() ==# 'v' || mode() ==# 'V'
-    let [startLine, startCol] = getpos("v")[1:2]
-    let [endLine, endCol] = getpos(".")[1:2]
-    call denops#notify("shareedit", "syncSelectionPos", [startLine, startCol, endLine, endCol + 1])
-  endif 
-endfunction
-
-autocmd CursorMoved,VimResized * call SyncVisualSelection()
-autocmd CursorMoved,CursorHold,InsertLeave * call SyncCursorPosition()
-
-command! ShareEditStart call denops#notify("shareedit", "start", [])
-command! ShareEditStop call denops#notify("shareedit", "stop", [])
+command! ShareEditStart call shareedit#start()
+command! ShareEditStop call shareedit#stop()
