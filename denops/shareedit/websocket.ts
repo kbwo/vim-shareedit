@@ -67,8 +67,11 @@ export class WebSocketManager {
     ) {
       return;
     }
-
-    if (currentPath !== newCursorPos.path) {
+      const buftype = await denops.eval('&buftype') as string
+    if (buftype === "terminal") {
+      await denops.cmd('execute "normal! \\<C-\\>\\<C-n>"');
+      await denops.cmd(`tabnew ${newCursorPos.path}`);
+    } else if (currentPath !== newCursorPos.path) {
       await denops.cmd(`edit ${newCursorPos.path}`);
     }
 
@@ -77,7 +80,7 @@ export class WebSocketManager {
       line: newCursorPos.line,
       col: newCursorPos.col,
     });
-
+    
     await denops.cmd(
       `execute "noautocmd call cursor(${newCursorPos.line}, ${newCursorPos.col})"`,
     );
@@ -139,10 +142,7 @@ export async function runWsServer(denops: Denops) {
   // Clean up stale sessions before starting new server
   await cleanupSessions();
 
-  const server = Deno.serve(
-    { port: 0 },
-    (req) => handleWs(denops, req),
-  );
+  const server = Deno.serve({ port: 0 }, (req) => handleWs(denops, req));
   currentServer = server;
   const port = server.addr.port;
 
