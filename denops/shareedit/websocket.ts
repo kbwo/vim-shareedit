@@ -67,9 +67,8 @@ export class WebSocketManager {
     ) {
       return;
     }
-      const buftype = await denops.eval('&buftype') as string
+    const buftype = (await denops.eval("&buftype")) as string;
     if (buftype === "terminal") {
-      await denops.cmd('execute "normal! \\<C-\\>\\<C-n>"');
       await denops.cmd(`tabnew ${newCursorPos.path}`);
     } else if (currentPath !== newCursorPos.path) {
       await denops.cmd(`edit ${newCursorPos.path}`);
@@ -80,7 +79,7 @@ export class WebSocketManager {
       line: newCursorPos.line,
       col: newCursorPos.col,
     });
-    
+
     await denops.cmd(
       `execute "noautocmd call cursor(${newCursorPos.line}, ${newCursorPos.col})"`,
     );
