@@ -13,6 +13,7 @@ CONTENTS                                                    *shareedit-contents*
     4. Usage ........................... |shareedit-usage|
     5. Commands ........................ |shareedit-commands|
     6. Features ........................ |shareedit-features|
+    7. FAQ ............................. |shareedit-faq|
 
 ==============================================================================
 1. INTRODUCTION                                         *shareedit-introduction*
@@ -73,6 +74,17 @@ Current Features:
 Upcoming Features:
 - Visual mode selection range sharing
 - Unsaved file edit sharing
+
+==============================================================================
+7. FAQ                                                        *shareedit-faq*
+
+Q: How can I automatically start ShareEdit when Vim starts?
+A: You can add the following code to your vimrc or init.vim:
+
+   call denops#plugin#wait_async('shareedit', { -> execute('ShareEditStart') })
+
+   This will automatically execute the ShareEditStart command after the
+   shareedit plugin is loaded by denops.
 
 ==============================================================================
 vim:ft=help:norl:ts=8:sw=8:sts=8:
