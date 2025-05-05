@@ -93,6 +93,13 @@ export async function stopWsServer() {
     console.log("ShareEdit: No server to stop");
     return;
   }
+  
+  // Close all active WebSocket connections first
+  for (const socket of sockets) {
+    socket.close(1000, "Server shutting down");
+  }
+  sockets.clear();
+  
   await currentServer.shutdown();
   await cleanupSessions();
   currentServer = null;
